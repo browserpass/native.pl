@@ -58,8 +58,10 @@ close($cmd_err);
 
 waitpid($pid, 0); # reap the exit code
 
-$stdout_output = substr($stdout_output, 4); # trim length bytes
+if ($stdout_output ne "") {
+	$stdout_output = substr($stdout_output, 4); # trim length bytes
+}
 
 print "Request:\n\t", $text, "\n";
-print "Result:\n\t", ( $stdout_output eq "" ? "-" : $stdout_output );
+print "Result:\n\t", ( $stdout_output eq "" ? "-" : $stdout_output ), "\n";
 print "Errors:\n\t", ( $stderr_output eq "" ? "-" : $stderr_output );
