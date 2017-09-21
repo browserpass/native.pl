@@ -13,11 +13,13 @@ if ($#ARGV+1 < 1) {
 
 my ($cmd_in, $cmd_out, $cmd_err);
 $cmd_err = gensym;
-my $pid = open3($cmd_in, $cmd_out, $cmd_err, './browserpass');
+my $pid = open3($cmd_in, $cmd_out, $cmd_err, shift);
+
+if ($#ARGV+1 < 1) {
+	die "No input";
+}
 
 my $text = join("", @ARGV);
-
-print "Request:\n\t", $text, "\n";
 
 my $len = length $text;
 
@@ -58,5 +60,6 @@ waitpid($pid, 0); # reap the exit code
 
 $stdout_output = substr($stdout_output, 4); # trim length bytes
 
+print "Request:\n\t", $text, "\n";
 print "Result:\n\t", ( $stdout_output eq "" ? "-" : $stdout_output );
 print "Errors:\n\t", ( $stderr_output eq "" ? "-" : $stderr_output );
