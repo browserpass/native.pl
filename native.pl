@@ -3,30 +3,42 @@
 use strict;
 use warnings;
 
+no warnings 'experimental';
+
 use IO::Select;
 use IPC::Open3;
 use Symbol 'gensym';
+use feature qw(switch);
+use Term::ANSIColor;
+use Term::ANSIColor qw(:constants);
+use Time::HiRes qw ( time alarm sleep );
 
-if ($#ARGV+1 < 1) {
-	die "Invalid number of arguments";
-}
+# check for arguments
+# TODO: usage information
+die "Invalid number of arguments" if $#ARGV+1 < 1;
 
 my ($cmd_in, $cmd_out, $cmd_err);
 $cmd_err = gensym;
+
+# open specified program for piping
 my $pid = open3($cmd_in, $cmd_out, $cmd_err, shift);
 
-if ($#ARGV+1 < 1) {
-	die "No input";
-}
+# check arguments again
+die "No input" if $#ARGV+1 < 1;
 
+# get text from arguments and calculate length
 my $text = join("", @ARGV);
-
 my $len = length $text;
 
+# save the start time here
+my $start = time;
+
+# write the length to the pipe (little endian format)
 print $cmd_in pack("L<", $len) . $text;
 
 close($cmd_in);
 
+# read from stdout/stderr
 my $select = IO::Select->new($cmd_out, $cmd_err);
 my $stdout_output = '';
 my $stderr_output = '';
@@ -34,14 +46,11 @@ my $stderr_output = '';
 while (my @ready = $select->can_read(5)) {
     foreach my $handle (@ready) {
         if (sysread($handle, my $buf, 4096)) {
-            if ($handle == $cmd_out) {
-                $stdout_output .= $buf;
-            }
-            else {
-                $stderr_output .= $buf;
-            }
-        }
-        else {
+            given ($handle) {
+				when ($cmd_out) { $stdout_output .= $buf }
+				when ($cmd_err) { $stderr_output .= $buf }
+			}
+        } else {
             # EOF or error
             $select->remove($handle);
         }
@@ -49,19 +58,23 @@ while (my @ready = $select->can_read(5)) {
 }
 
 if ($select->count) {
-    print "Timed out\n";
     kill('TERM', $pid);
+    die "Timed out\n";
 }
 
 close($cmd_out);
 close($cmd_err);
 
-waitpid($pid, 0); # reap the exit code
+# reap the exit code
+waitpid($pid, 0);
 
-if ($stdout_output ne "") {
-	$stdout_output = substr($stdout_output, 4); # trim length bytes
-}
+# trim length bytes from response
+$stdout_output = substr($stdout_output, 4) unless $stdout_output eq "";
 
-print "Request:\n\t", $text, "\n";
-print "Result:\n\t", ( $stdout_output eq "" ? "-" : $stdout_output ), "\n";
-print "Errors:\n\t", ( $stderr_output eq "" ? "-" : $stderr_output );
+my $duration = sprintf("%.3f", time - $start);
+
+# print results
+print YELLOW, "Request:", RESET, " |  ", CYAN, $text, RESET, "\n";
+print YELLOW, "Result:", RESET, "  |  ", GREEN, ($stdout_output or "-\n"), RESET;
+print YELLOW, "Errors:", RESET, "  |  ", RED, ($stderr_output or "-\n"), RESET;
+print YELLOW, "Time:", RESET, "    |  ", $duration, "s\n";
