@@ -63,9 +63,9 @@ while (my @ready = $select->can_read(5)) {
     foreach my $handle (@ready) {
         if (sysread($handle, my $buf, 4096)) {
             given ($handle) {
-				when ($cmd_out) { $stdout_output .= $buf }
-				when ($cmd_err) { $stderr_output .= $buf }
-			}
+                when ($cmd_out) { $stdout_output .= $buf }
+                when ($cmd_err) { $stderr_output .= $buf }
+            }
         } else {
             # EOF or error
             $select->remove($handle);
